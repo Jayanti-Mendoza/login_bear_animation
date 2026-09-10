@@ -1,17 +1,25 @@
-# login_bear_animation
+Login_Animation_pro_8SC 📱
 
-A new Flutter project.
+This is a mobile application built in Dart, using Flutter, a framework created by Google in 2017. The app uses Rive animations, an engine for interactive animations.
 
-## Getting Started
+✨ Main Features
 
-This project is a starting point for a Flutter application.
+✅ Feature 1 → User Login
 
-A few resources to get you started if this is your first Flutter project:
+✅ Feature 2 → Cool Animations with Rive
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+✅ Feature 3 → Integration of Rive + Flutter
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+🧱 Technologies
+
+Mobile Framework: Flutter
+
+CI/CD: GitHub
+
+Editors: Visual Studio Code, Android Studio
+
+📌 Project by: Jayanti Saraí Mendoza Aké
+
+📘 Course: Mobile Application Programming (8SC)
+
+👨‍🏫 Instructor: Rodrigo Fidel Gaxiola Sosa
