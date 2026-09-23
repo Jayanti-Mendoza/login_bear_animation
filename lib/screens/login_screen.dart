@@ -19,6 +19,30 @@ class _LoginScreenState extends State<LoginScreen> {
   SMIBool? _trigSuccess;
   SMIBool? _trigFail;
 
+  //2.1 Crear las variables para FocusNode
+  //_que sea privada
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+
+  //2.2 Listeners  (Oyentes/chismosos)
+  @override
+  void initState() {
+    super.initState();
+    _emailFocus.addListener(() {
+      if (_emailFocus.hasFocus) {
+        //Verificar que no sea nulo
+        if (_isHandsUp != null) {
+          //manos abajo en el email
+          _isHandsUp?.change(false);
+        }
+      }
+    });
+    _passwordFocus.addListener(() {
+      //manos arriba en el password
+      _isHandsUp?.change(_passwordFocus.hasFocus);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     // Para obtener el tamaño de la pantalla
@@ -52,15 +76,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   },
                 ),
               ),
-
-              //para separar espacios
               SizedBox(height: 10),
               //Campo de texto para el email
               TextField(
+                focusNode: _emailFocus,
                 onChanged: (value) {
                   if (_isChecking != null) {
                     //NO tapes los ojos al ver email
-                    _isChecking!.change(true);
+                    //  _isChecking!.change(true);
                   }
                   //si ischecking es diferente de nulo
                   if (_isHandsUp == null) return;
@@ -76,13 +99,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
+
               SizedBox(height: 10),
               //Campo de texto para la contraseña
               TextField(
+                //2.4 Asignar foco al campo de texto
+                focusNode: _passwordFocus,
                 onChanged: (value) {
                   if (_isChecking != null) {
                     //No tapes los ojos al ver email
-                    _isChecking!.change(false);
+                    // _isChecking!.change(false);
                   }
                   //Si isChecking es nulo
                   if (_isHandsUp == null) return;
@@ -115,5 +141,13 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    //2.4 liberar espacio en memoria
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    super.dispose();
   }
 }
