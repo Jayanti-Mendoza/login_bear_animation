@@ -1,4 +1,4 @@
-import 'dart:async'; // 3.1 Importar el timer
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:rive/rive.dart';
@@ -12,40 +12,36 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _obscureText = true;
+  bool _rememberMe = false;
 
-  // 1.1 Crear cerebro de la animación
+  // 1. BANDERA ANTI-SPAM: controla si la interacción está bloqueada
+  bool _isAnimatingToggle = false;
+
   StateMachineController? _controller;
-  // SMI: StateMachineInput / Entrada de máquina de estado
   SMIBool? _isChecking;
   SMIBool? _isHandsUp;
-
   SMITrigger? _trigSuccess;
   SMITrigger? _trigFail;
-
-  // 3.2 Variable del recorrido de la mirada
   SMINumber? _numLook;
 
-  // 3.3 Timer para detener la mirada al dejar de escribir
-  Timer? _typingDebounce;
+  Timer? _typingDebunce;
+  // Timer adicional para liberar el bloqueo si la animación es por tiempo definido
+  Timer? _toggleLockTimer;
 
-  // 2.1 Crear las variables para FocusNode
   final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
-  // 4.1 Controllers que manipulan lo que el usuario escribe
+
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
 
-  // 4.2 Errores para mostrar en la UI
-  String? _emailError;
-  String? _passError;
+  String? emailError;
+  String? passError;
 
-  // 4.3 Validadores
   bool isValidEmail(String email) {
     final re = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
     return re.hasMatch(email);
   }
 
-  // Password:
   bool isValidPassword(String pass) {
     final re = RegExp(
       r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$',
@@ -53,52 +49,82 @@ class _LoginScreenState extends State<LoginScreen> {
     return re.hasMatch(pass);
   }
 
-  // 4.4 Dar acción al botón
   void _onLogin() {
     final email = _emailCtrl.text.trim();
     final pass = _passCtrl.text;
 
-    final eError = isValidEmail(email) ? null : 'Invalid email';
+    final eError = isValidEmail(email) ? null : 'Invalid email format';
     final pError = isValidPassword(pass) ? null : 'Invalid password';
 
     setState(() {
-      _emailError = eError;
-      _passError = pError;
+      emailError = eError;
+      passError = pError;
     });
 
     FocusScope.of(context).unfocus();
-    _typingDebounce?.cancel();
-
-    // Desactivar estados de mirada y manos
-    _isChecking?.value = false;
-    _isHandsUp?.value = false;
+    _typingDebunce?.cancel();
+    _isChecking?.change(false);
+    _isHandsUp?.change(false);
     _numLook?.value = 50.0;
 
-    // 4.9 Activar triggers
     if (eError == null && pError == null) {
-      debugPrint('Disparando Success');
       _trigSuccess?.fire();
     } else {
-      debugPrint('Disparando Fail. Valor de _trigFail: $_trigFail');
-      if (_trigFail != null) {
-        _trigFail!.fire();
-      } else {
-        debugPrint(
-          '⚠️ _trigFail es NULO. Revisa el nombre del input en el .riv',
-        );
-      }
+      _trigFail?.fire();
     }
   }
 
-  // 2.2 Listeners (Oyentes/chismosos)
+  void _updateLookPosition(String text) {
+    _isChecking?.change(true);
+    final look = (text.length / 80.0 * 100.0).clamp(0.0, 100.0);
+    _numLook?.value = look;
+
+    _typingDebunce?.cancel();
+    _typingDebunce = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      _isChecking?.change(false);
+    });
+  }
+
+  // 2. LÓGICA DEL TOGGLE CON BLOQUEO ANTI-SPAM
+  void _onToggleRememberMe(bool? value) {
+    // Si ya está ejecutando la animación, ignoramos el toque por completo
+    if (_isAnimatingToggle) return;
+
+    setState(() {
+      _isAnimatingToggle = true; // Bloqueamos la interfaz
+      _rememberMe = value ?? false;
+    });
+
+    FocusScope.of(context).unfocus();
+    _isHandsUp?.change(false);
+    _isChecking?.change(true);
+    _numLook?.value = 50.0;
+
+    _typingDebunce?.cancel();
+    _typingDebunce = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      _isChecking?.change(false);
+    });
+
+    // Simulamos la duración de la animación (ajusta el tiempo al de tu animación)
+    _toggleLockTimer?.cancel();
+    _toggleLockTimer = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      setState(() {
+        _isAnimatingToggle = false; // Liberamos el bloqueo al terminar
+      });
+    });
+  }
+
   @override
   void initState() {
     super.initState();
+
     _emailFocus.addListener(() {
       if (_emailFocus.hasFocus) {
         _isHandsUp?.change(false);
-        _isChecking?.change(true);
-        _numLook?.value = 50.0;
+        _updateLookPosition(_emailCtrl.text);
       } else {
         _isChecking?.change(false);
       }
@@ -107,14 +133,17 @@ class _LoginScreenState extends State<LoginScreen> {
     _passwordFocus.addListener(() {
       if (_passwordFocus.hasFocus) {
         _isChecking?.change(false);
+        _isHandsUp?.change(_obscureText);
+      } else {
+        _isHandsUp?.change(false);
       }
-      _isHandsUp?.change(_passwordFocus.hasFocus);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final Size size = MediaQuery.of(context).size;
+
     return Scaffold(
       body: SingleChildScrollView(
         child: SafeArea(
@@ -133,34 +162,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         artboard,
                         'Login Machine',
                       );
+
                       if (_controller == null) return;
                       artboard.addController(_controller!);
 
-                      // Imprimir todos los inputs disponibles para verificar sus nombres
-                      for (var input in _controller!.inputs) {
-                        debugPrint(
-                          'Input encontrado en Rive: ${input.name} (${input.runtimeType})',
-                        );
-                      }
-
-                      // Vinculación intentando nombres alternativos si no encuentra el exacto
-                      _isChecking =
-                          _controller!.findSMI('isChecking') ??
-                          _controller!.findSMI('Check');
-                      _isHandsUp =
-                          _controller!.findSMI('isHandsUp') ??
-                          _controller!.findSMI('hands_up');
-
-                      _trigSuccess =
-                          _controller!.findSMI('trigSuccess') ??
-                          _controller!.findSMI('success');
-                      _trigFail =
-                          _controller!.findSMI('trigFail') ??
-                          _controller!.findSMI('fail');
-
-                      _numLook =
-                          _controller!.findSMI('numLook') ??
-                          _controller!.findSMI('Look');
+                      _isChecking = _controller!.findSMI('isChecking');
+                      _isHandsUp = _controller!.findSMI('isHandsUp');
+                      _trigSuccess = _controller!.findSMI('trigSuccess');
+                      _trigFail = _controller!.findSMI('trigFail');
+                      _numLook = _controller!.findSMI('numLook');
                     },
                   ),
                 ),
@@ -171,23 +181,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   focusNode: _emailFocus,
                   onChanged: (value) {
                     _isHandsUp?.change(false);
-                    _isChecking?.change(true);
-
-                    final look = (value.length / 80.0 * 100.0).clamp(
-                      0.0,
-                      100.0,
-                    );
-                    _numLook?.value = look;
-
-                    _typingDebounce?.cancel();
-                    _typingDebounce = Timer(const Duration(seconds: 3), () {
-                      if (!mounted) return;
-                      _isChecking?.change(false);
-                    });
+                    _updateLookPosition(value);
                   },
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
-                    errorText: _emailError,
+                    errorText: emailError,
                     hintText: 'Email',
                     prefixIcon: const Icon(Icons.email),
                     border: OutlineInputBorder(
@@ -195,7 +193,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 10),
 
                 TextField(
@@ -203,11 +200,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   focusNode: _passwordFocus,
                   onChanged: (value) {
                     _isChecking?.change(false);
-                    _isHandsUp?.change(true);
+                    if (_passwordFocus.hasFocus) {
+                      _isHandsUp?.change(_obscureText);
+                    }
                   },
                   obscureText: _obscureText,
                   decoration: InputDecoration(
-                    errorText: _passError,
+                    errorText: passError,
                     hintText: 'Password',
                     prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
@@ -218,6 +217,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         setState(() {
                           _obscureText = !_obscureText;
                         });
+                        if (_passwordFocus.hasFocus) {
+                          _isHandsUp?.change(_obscureText);
+                        }
                       },
                     ),
                     border: OutlineInputBorder(
@@ -225,15 +227,44 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 5),
 
-                SizedBox(
-                  width: size.width,
-                  child: const Text(
-                    'Forgot Password?',
-                    textAlign: TextAlign.right,
-                    style: TextStyle(decoration: TextDecoration.underline),
-                  ),
+                // Sección con Remember Me y Forgot Password
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // 3. WIDGET ABSORBPOINTER: Absorbe los eventos táctiles mientras esté animando
+                    AbsorbPointer(
+                      absorbing: _isAnimatingToggle,
+                      child: GestureDetector(
+                        onTap: () => _onToggleRememberMe(!_rememberMe),
+                        child: Row(
+                          children: [
+                            Checkbox(
+                              value: _rememberMe,
+                              activeColor: Colors.pinkAccent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              onChanged: _onToggleRememberMe,
+                            ),
+                            const Text('Remember me'),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    TextButton(
+                      onPressed: () {},
+                      child: const Text(
+                        'Forgot Password?',
+                        style: TextStyle(
+                          decoration: TextDecoration.underline,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 10),
 
@@ -242,7 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   height: 50,
                   color: Colors.pinkAccent,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(25),
                   ),
                   onPressed: _onLogin,
                   child: const Text(
@@ -261,10 +292,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextButton(
                         onPressed: () {},
                         child: const Text(
-                          'Sign up',
+                          "Sign Up",
                           style: TextStyle(
-                            color: Colors.black,
-                            decoration: TextDecoration.underline,
+                            color: Colors.pinkAccent,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -286,7 +316,9 @@ class _LoginScreenState extends State<LoginScreen> {
     _passCtrl.dispose();
     _emailFocus.dispose();
     _passwordFocus.dispose();
-    _typingDebounce?.cancel();
+    _typingDebunce?.cancel();
+    _toggleLockTimer?.cancel(); // Liberar la memoria del Timer del bloqueo
+    _controller?.dispose();
     super.dispose();
   }
 }
